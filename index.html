@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>J.A.R.V.I.S.</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#02070b">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#060a10;
+    --bg-panel:#0b121a;
+    --bg-panel2:#0e1720;
+    --cyan:#8fb8ff;
+    --cyan-dim:#1c5866;
+    --cyan-glow:rgba(143,184,255,0.35);
+    --amber:#ffb15c;
+    --text:#d9f4f8;
+    --text-dim:#4f7885;
+    --red:#ff5b5b;
+    --line: rgba(143,184,255,0.14);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:
+      radial-gradient(ellipse at 50% -10%, rgba(47,111,237,0.16), transparent 60%),
+      radial-gradient(ellipse at 50% 110%, rgba(143,184,255,0.08), transparent 60%),
+      repeating-linear-gradient(60deg, rgba(143,184,255,0.035) 0px, rgba(143,184,255,0.035) 1px, transparent 1px, transparent 46px),
+      repeating-linear-gradient(-60deg, rgba(143,184,255,0.035) 0px, rgba(143,184,255,0.035) 1px, transparent 1px, transparent 46px),
+      repeating-linear-gradient(0deg, rgba(143,184,255,0.025) 0px, rgba(143,184,255,0.025) 1px, transparent 1px, transparent 46px),
+      var(--bg);
+    color:var(--text);
+    font-family:'IBM Plex Mono', monospace;
+    min-height:100vh;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  .scanlines{
+    position:fixed; inset:0; pointer-events:none; z-index:50;
+    background:repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0px, transparent 1px, transparent 3px);
+    mix-blend-mode:overlay;
+  }
+  .vignette{
+    position:fixed; inset:0; pointer-events:none; z-index:49;
+    box-shadow: inset 0 0 200px rgba(0,0,0,0.75);
+  }
+
+  .app{
+    max-width:1200px; margin:0 auto; padding:20px 24px 40px;
+    display:flex; flex-direction:column; gap:16px;
+    min-height:100vh;
+  }
+
+  /* HEADER */
+  header{
+    display:flex; justify-content:space-between; align-items:flex-end;
+    border-bottom:1px solid var(--line); padding-bottom:14px;
+  }
+  .brand{
+    font-family:'Chakra Petch', sans-serif; font-weight:700;
+    font-size:22px; letter-spacing:6px; color:var(--cyan);
+    text-shadow:0 0 18px var(--cyan-glow);
+  }
+  .brand span{color:var(--text-dim); font-weight:400; font-size:11px; letter-spacing:3px; display:block; margin-top:2px;}
+  .hdr-right{text-align:right; font-size:11px; color:var(--text-dim); letter-spacing:1px;}
+  .hdr-right .clock{font-family:'Chakra Petch',sans-serif; color:var(--cyan); font-size:20px; letter-spacing:2px;}
+  .status-dot{display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--cyan); box-shadow:0 0 8px var(--cyan); margin-right:6px; animation:blink 2.4s infinite;}
+  @keyframes blink{0%,100%{opacity:1;}50%{opacity:0.3;}}
+
+  /* MAIN GRID */
+  main{
+    display:grid;
+    grid-template-columns: 220px 1fr 220px;
+    gap:16px;
+    flex:1;
+  }
+  @media(max-width:880px){ main{grid-template-columns:1fr;} .side{display:none;} }
+
+  .panel{
+    background:linear-gradient(180deg, var(--bg-panel), var(--bg-panel2));
+    border:1px solid var(--line);
+    border-radius:4px;
+    position:relative;
+  }
+  .panel::before{
+    content:''; position:absolute; top:0; left:0; width:14px; height:14px;
+    border-top:2px solid var(--cyan); border-left:2px solid var(--cyan); opacity:0.6;
+  }
+  .panel::after{
+    content:''; position:absolute; bottom:0; right:0; width:14px; height:14px;
+    border-bottom:2px solid var(--cyan); border-right:2px solid var(--cyan); opacity:0.6;
+  }
+  .panel-title{
+    font-family:'Chakra Petch',sans-serif; font-size:11px; letter-spacing:3px; color:var(--cyan);
+    padding:12px 14px 8px; border-bottom:1px solid var(--line); opacity:0.9;
+  }
+
+  /* SIDE PANELS */
+  .side{padding-bottom:14px; display:flex; flex-direction:column;}
+  .stat-row{padding:10px 14px; border-bottom:1px solid var(--line); font-size:11px;}
+  .stat-label{color:var(--text-dim); letter-spacing:1.5px; margin-bottom:5px;}
+  .stat-val{color:var(--text); font-size:13px; letter-spacing:1px;}
+  .bar{height:4px; background:rgba(143,184,255,0.1); margin-top:6px; overflow:hidden; border-radius:2px;}
+  .bar-fill{height:100%; background:linear-gradient(90deg, var(--cyan-dim), var(--cyan)); box-shadow:0 0 6px var(--cyan-glow);}
+
+  /* CENTER CORE */
+  .core-wrap{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:30px 10px 10px; gap:18px;
+  }
+  .reactor{
+    position:relative; width:260px; height:260px;
+  }
+  .ring{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    border-radius:50%; border:1px solid var(--cyan-dim);
+  }
+  .ring1{width:260px; height:260px; border-style:dashed; opacity:0.4; animation:spin 44s linear infinite;}
+  .ring2{width:200px; height:200px; border-color:var(--cyan); opacity:0.5; animation:spin 30s linear infinite reverse;}
+  .ring3{width:150px; height:150px; border-width:2px; border-color:var(--cyan); opacity:0.75; animation:spin 16s linear infinite;}
+  .ticks{position:absolute; inset:0; animation:spin 60s linear infinite;}
+  .tick{position:absolute; width:1px; height:10px; background:var(--cyan); opacity:0.5; left:50%; top:2px; transform-origin:0.5px 128px;}
+  .tick.major{height:14px; width:2px; opacity:0.85; background:var(--amber);}
+  .reticle{
+    position:absolute; width:16px; height:16px; opacity:0.85;
+    animation:spin 22s linear infinite reverse;
+  }
+  .reticle::before, .reticle::after{content:''; position:absolute; background:var(--cyan);}
+  .reticle-tl{top:-4px; left:-4px;}
+  .reticle-tr{top:-4px; right:-4px;}
+  .reticle-bl{bottom:-4px; left:-4px;}
+  .reticle-br{bottom:-4px; right:-4px;}
+  .brackets{position:absolute; inset:-18px;}
+  .bracket{position:absolute; width:22px; height:22px; border:2px solid var(--cyan); opacity:0.8;}
+  .bracket.tl{top:0; left:0; border-right:none; border-bottom:none;}
+  .bracket.tr{top:0; right:0; border-left:none; border-bottom:none;}
+  .bracket.bl{bottom:0; left:0; border-right:none; border-top:none;}
+  .bracket.br{bottom:0; right:0; border-left:none; border-top:none;}
+  .core{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:104px; height:104px; border-radius:50%;
+    background:radial-gradient(circle at 50% 50%, rgba(143,184,255,0.10), rgba(6,10,16,0.9) 70%);
+    border:1.5px solid var(--cyan);
+    box-shadow:0 0 22px 4px var(--cyan-glow), inset 0 0 18px rgba(143,184,255,0.25);
+    animation:pulse 2.6s ease-in-out infinite;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .core-text{
+    font-family:'Chakra Petch',sans-serif; font-weight:600; font-size:11px; letter-spacing:1.5px;
+    color:var(--cyan); text-shadow:0 0 10px var(--cyan-glow); text-align:center; line-height:1.3;
+  }
+  .core-text small{display:block; font-size:7px; color:var(--text-dim); letter-spacing:2px; margin-top:2px; font-weight:400;}
+  @keyframes spin{from{transform:translate(-50%,-50%) rotate(0deg);}to{transform:translate(-50%,-50%) rotate(360deg);}}
+  @keyframes pulse{0%,100%{transform:translate(-50%,-50%) scale(1); box-shadow:0 0 22px 4px var(--cyan-glow), inset 0 0 18px rgba(143,184,255,0.25);}50%{transform:translate(-50%,-50%) scale(1.04); box-shadow:0 0 32px 8px var(--cyan-glow), inset 0 0 26px rgba(143,184,255,0.35);}}
+
+  .reactor.state-listening .core{border-color:var(--amber); box-shadow:0 0 26px 6px rgba(255,177,92,0.4), inset 0 0 18px rgba(255,177,92,0.25);}
+  .reactor.state-listening .core-text{color:var(--amber); text-shadow:0 0 10px rgba(255,177,92,0.4);}
+  .reactor.state-listening .ring2,.reactor.state-listening .ring3{border-color:var(--amber);}
+  .reactor.state-thinking .ring3{animation-duration:3s;}
+  .reactor.state-thinking .core{animation-duration:0.9s;}
+
+  .voice-label{
+    font-family:'Chakra Petch',sans-serif; letter-spacing:4px; font-size:12px; color:var(--text-dim);
+    text-align:center;
+  }
+  .voice-label b{color:var(--cyan);}
+
+  /* CHAT LOG */
+  .log{
+    height:260px; overflow-y:auto; padding:14px; font-size:13px; line-height:1.6;
+    display:flex; flex-direction:column; gap:10px;
+  }
+  .log::-webkit-scrollbar{width:6px;}
+  .log::-webkit-scrollbar-thumb{background:var(--cyan-dim); border-radius:3px;}
+  .msg{max-width:88%;}
+  .msg .who{font-size:10px; letter-spacing:2px; color:var(--text-dim); margin-bottom:3px;}
+  .msg.user{align-self:flex-end; text-align:right;}
+  .msg.user .who{color:var(--amber);}
+  .msg.jarvis .bubble{color:var(--text);}
+  .msg.user .bubble{color:#cfeaf0;}
+  .bubble{white-space:pre-wrap;}
+
+  /* INPUT BAR */
+  .input-bar{
+    display:flex; align-items:center; gap:10px; padding:12px 14px; border-top:1px solid var(--line);
+  }
+  .input-bar input{
+    flex:1; background:rgba(143,184,255,0.05); border:1px solid var(--line); border-radius:3px;
+    color:var(--text); padding:10px 12px; font-family:'IBM Plex Mono',monospace; font-size:13px; outline:none;
+  }
+  .input-bar input:focus{border-color:var(--cyan);}
+  .input-bar input::placeholder{color:var(--text-dim);}
+  .btn{
+    background:transparent; border:1px solid var(--cyan-dim); color:var(--cyan);
+    font-family:'Chakra Petch',sans-serif; letter-spacing:1.5px; font-size:12px;
+    padding:10px 16px; border-radius:3px; cursor:pointer; transition:all .15s;
+  }
+  .btn:hover{background:rgba(143,184,255,0.1); border-color:var(--cyan);}
+  .mic-btn{
+    width:42px; height:42px; border-radius:50%; border:1px solid var(--cyan-dim);
+    background:rgba(143,184,255,0.05); color:var(--cyan); font-size:16px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:all .15s;
+  }
+  .mic-btn.on{background:rgba(255,177,92,0.15); border-color:var(--amber); color:var(--amber); box-shadow:0 0 14px rgba(255,177,92,0.3);}
+
+  .hint{font-size:10px; color:var(--text-dim); text-align:center; letter-spacing:1px; padding-top:2px;}
+
+  /* ARMOR DATABASE */
+  .armor-grid{
+    display:grid; grid-template-columns:220px 1fr; gap:0;
+  }
+  @media(max-width:760px){ .armor-grid{grid-template-columns:1fr;} }
+  .armor-select-col{border-right:1px solid var(--line); padding:14px;}
+  .armor-select-col select{
+    width:100%; background:rgba(143,184,255,0.06); border:1px solid var(--line); color:var(--text);
+    font-family:'IBM Plex Mono',monospace; font-size:12px; padding:8px; border-radius:3px; margin-bottom:10px;
+  }
+  .armor-visual{
+    display:flex; align-items:center; justify-content:center; padding:24px; position:relative; min-height:220px;
+    perspective:700px;
+  }
+  .wireframe{
+    width:110px; height:200px; position:relative; transform-style:preserve-3d;
+    animation:rotateY 9s linear infinite;
+    transition:transform 0.4s ease;
+  }
+  @keyframes rotateY{from{transform:rotateY(0deg) scale(var(--wf-scale,1));}to{transform:rotateY(360deg) scale(var(--wf-scale,1));}}
+  .wf-part{position:absolute; border:1.5px solid var(--wf-accent, var(--cyan)); opacity:0.9; box-shadow:0 0 8px var(--wf-accent-glow, rgba(143,184,255,0.25)); transition:border-color 0.4s, box-shadow 0.4s;}
+  .wf-head{width:34px; height:34px; border-radius:50%; top:0; left:38px;}
+  .wf-visor{width:20px; height:6px; top:13px; left:45px; border-radius:2px; opacity:0.7;}
+  .wf-torso{width:60px; height:70px; top:38px; left:25px; border-radius:6px;}
+  .wf-chestline{width:40px; height:1px; top:60px; left:35px; opacity:0.5;}
+  .wf-armL{width:14px; height:60px; top:42px; left:6px; border-radius:6px;}
+  .wf-armR{width:14px; height:60px; top:42px; right:6px; border-radius:6px;}
+  .wf-handL{width:10px; height:10px; top:100px; left:8px; border-radius:3px;}
+  .wf-handR{width:10px; height:10px; top:100px; right:8px; border-radius:3px;}
+  .wf-legL{width:18px; height:78px; top:112px; left:24px; border-radius:6px;}
+  .wf-legR{width:18px; height:78px; top:112px; right:24px; border-radius:6px;}
+  .wf-footL{width:22px; height:8px; top:188px; left:22px; border-radius:3px;}
+  .wf-footR{width:22px; height:8px; top:188px; right:22px; border-radius:3px;}
+  .wf-core{width:10px; height:10px; border-radius:50%; top:62px; left:50px; background:var(--wf-accent, var(--cyan)); box-shadow:0 0 12px 3px var(--wf-accent-glow, var(--cyan-glow)); border:none;}
+  .armor-info{padding:0 14px 14px;}
+  .armor-name{font-family:'Chakra Petch',sans-serif; letter-spacing:2px; color:var(--cyan); font-size:14px; margin-bottom:6px;}
+  .armor-desc{font-size:12px; line-height:1.6; color:var(--text-dim); min-height:20px;}
+  .armor-note{font-size:10px; color:var(--text-dim); opacity:0.7; margin-top:10px; line-height:1.5; border-top:1px solid var(--line); padding-top:8px;}
+
+  footer{
+    display:flex; justify-content:space-between; align-items:center;
+    font-size:10px; color:var(--text-dim); letter-spacing:1.5px; padding-top:6px;
+  }
+
+/* ===== HUD radial — skin inspirée de l'interface K.A.R.A. ===== */
+:root{
+  --bg:#04060c; --bg-panel:rgba(8,14,28,.72); --bg-panel2:rgba(8,14,28,.72);
+  --cyan:#8fb8ff; --cyan-dim:#1d3a66; --cyan-glow:rgba(110,160,255,.35);
+  --amber:#ff3d6e; --pink:#ff3d6e;
+  --text:#eaf0ff; --text-dim:#5d7396; --line:rgba(120,160,230,.16);
+}
+body{
+  font-family:'Chakra Petch',sans-serif;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96'%3E%3Cpath d='M48 43v10M43 48h10' stroke='%2378a0e6' stroke-opacity='.3'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse at 50% 25%, rgba(34,70,140,.28), transparent 60%),
+    linear-gradient(rgba(120,160,230,.05) 1px, transparent 1px) 0 0/96px 96px,
+    linear-gradient(90deg, rgba(120,160,230,.05) 1px, transparent 1px) 0 0/96px 96px,
+    var(--bg);
+}
+.brand{color:#fff; text-shadow:none; letter-spacing:7px; font-weight:600;}
+.hdr-right .clock{color:#fff; font-weight:500;}
+#dateLine{font-size:10px; letter-spacing:2px; color:var(--text-dim); margin-bottom:4px;}
+.status-dot{background:var(--pink); box-shadow:0 0 8px var(--pink);}
+.panel{border-radius:14px; background:var(--bg-panel); backdrop-filter:blur(3px);}
+.panel::before,.panel::after{display:none;}
+.panel-title{display:flex; align-items:center; gap:8px; color:var(--text-dim); font-weight:500;}
+.panel-title::before{content:''; width:5px; height:5px; border-radius:50%; background:var(--pink); box-shadow:0 0 6px var(--pink);}
+
+.reactor{width:min(540px,100%); height:auto; aspect-ratio:1/1;}
+.core-wrap{padding:18px 10px 6px; gap:6px;}
+.dial{width:100%; height:100%; display:block;}
+.segg{cursor:pointer; outline:none;}
+.seg{fill:rgba(46,92,170,.13); stroke:rgba(130,175,255,.4); stroke-width:1; transition:fill .18s, stroke .18s;}
+.seg-label{fill:#a9c6f7; font:500 12px 'Chakra Petch',sans-serif; letter-spacing:2.2px; pointer-events:none; transition:fill .18s;}
+.seg-bot .seg-label{font-size:11px; letter-spacing:1.6px;}
+.segg:hover .seg,.segg:focus-visible .seg{fill:rgba(var(--acc),.2); stroke:var(--pink);}
+.segg:hover .seg-label,.segg:focus-visible .seg-label{fill:#fff;}
+.halo-ring{fill:none; stroke:rgba(130,175,255,.25); stroke-dasharray:2 7;}
+.tick-ln{stroke:rgba(130,175,255,.35); stroke-width:1;}
+.tick-ln.maj{stroke:var(--pink); stroke-opacity:.7; stroke-width:1.5;}
+.ticks-spin{transform-origin:260px 260px; animation:orbspin 140s linear infinite;}
+.orb{filter:drop-shadow(0 0 8px rgba(var(--acc),.35)); transition:filter .3s;}
+.orb-halo{fill:none; stroke:rgba(255,255,255,.28); stroke-dasharray:1 5; transform-origin:260px 260px; animation:orbspin 40s linear infinite reverse;}
+.orb-ring{fill:none; stroke:url(#rg); stroke-width:1.6; transform-origin:260px 260px; animation:orbspin 12s linear infinite;}
+.orb-ring.r2{animation-duration:17s; animation-direction:reverse;}
+.orb-ring.r3{animation-duration:23s;}
+.orb-core{transform-origin:260px 260px; animation:orbpulse 2.6s ease-in-out infinite;}
+.reactor.state-listening .orb{filter:drop-shadow(0 0 16px rgba(var(--acc),.9));}
+.reactor.state-thinking .orb-ring{animation-duration:2.4s;}
+.reactor.state-speaking .orb-core{animation-duration:.55s;}
+.mini circle{fill:rgba(8,14,28,.9); stroke:rgba(var(--acc),.55);}
+.mini .mv{fill:#fff; font:600 11px 'Chakra Petch',sans-serif; text-anchor:middle;}
+.mini .ml{fill:var(--text-dim); font:400 6.5px 'IBM Plex Mono',monospace; text-anchor:middle; letter-spacing:1px;}
+@keyframes orbspin{to{transform:rotate(360deg);}}
+@keyframes orbpulse{0%,100%{transform:scale(1); opacity:.8;}50%{transform:scale(1.25); opacity:1;}}
+.greet{font-weight:500; font-size:clamp(18px,3.4vw,26px); letter-spacing:4px; color:#fff; text-align:center;}
+.voice-label b{color:var(--pink);}
+.btn{border-radius:999px; border-color:rgba(var(--acc),.45); color:#fff;}
+.btn:hover{background:rgba(var(--acc),.14); border-color:var(--pink);}
+.input-bar input{border-radius:999px; padding:10px 16px;}
+@media(max-width:880px){ main > .panel:not(.side){order:-1;} .side{display:flex;} }
+@media(prefers-reduced-motion:reduce){ .ticks-spin,.orb-halo,.orb-ring,.orb-core{animation:none;} }
+
+/* ===== Mode FILM (Iron Man / Avengers) ===== */
+:root{--acc:255,61,110;}
+body.film{--bg:#02070b; --cyan:#37e0ff; --cyan-dim:#0e4a5c; --cyan-glow:rgba(55,224,255,.4); --amber:#f5b335; --pink:#f5b335; --acc:245,179,53; --text:#e4fbff; --text-dim:#4f8794; --line:rgba(55,224,255,.18); --bg-panel:rgba(3,14,20,.74); --bg-panel2:rgba(3,14,20,.74);}
+.film .seg{fill:rgba(55,224,255,.07); stroke:rgba(55,224,255,.42);}
+.film .seg-label{fill:#9fefff;}
+.film .halo-ring,.film .tick-ln{stroke:rgba(55,224,255,.3);}
+.film .tick-ln.maj{stroke:#f5b335;}
+.film #og stop:nth-child(2){stop-color:#b6f6ff;} .film #og stop:nth-child(3){stop-color:#37e0ff;}
+.film #rg stop:nth-child(2){stop-color:#37e0ff;}
+.film .orb{filter:drop-shadow(0 0 12px rgba(55,224,255,.7));}
+.film .reactor.state-listening .orb{filter:drop-shadow(0 0 18px rgba(245,179,53,.95));}
+.pulse{fill:none; stroke:var(--cyan); opacity:0; transform-origin:260px 260px;}
+.reactor.state-speaking .pulse,.reactor.state-listening .pulse{animation:orbping 1.4s ease-out infinite;}
+.pulse.p2{animation-delay:.7s;}
+@keyframes orbping{0%{transform:scale(.8); opacity:.7;}100%{transform:scale(1.6); opacity:0;}}
+
+/* ===== Séquence de démarrage ===== */
+#boot{position:fixed; inset:0; z-index:100; background:#02070b; display:flex; align-items:center; justify-content:center; transition:opacity .8s; cursor:pointer;}
+#boot pre{font:13px/1.9 'IBM Plex Mono',monospace; color:#37e0ff; letter-spacing:2px; text-shadow:0 0 8px rgba(55,224,255,.5); min-width:min(420px,86vw);}
+#boot.off{opacity:0; pointer-events:none;}
+
+/* ===== HUD de casque ===== */
+#helmet{position:fixed; inset:0; z-index:80; display:none; color:#bff6ff; font-family:'Chakra Petch',sans-serif; background:radial-gradient(ellipse at 50% 50%, rgba(95,233,255,.04), rgba(2,10,16,.6) 68%, rgba(0,0,0,.94) 100%);}
+#helmet.on{display:block;}
+.h-frame{position:absolute; inset:14px; border:1.5px solid rgba(95,233,255,.35); border-radius:46% / 38%; box-shadow:inset 0 0 120px 30px rgba(0,0,0,.8);}
+.h-scan{position:absolute; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,rgba(95,233,255,.35),transparent); animation:hscan 5s linear infinite;}
+@keyframes hscan{from{top:0;}to{top:100%;}}
+.h-reticle{position:absolute; left:50%; top:50%; width:min(52vmin,420px); transform:translate(-50%,-50%);}
+.h-reticle .hr1{fill:none; stroke:rgba(95,233,255,.6); stroke-dasharray:6 10; transform-origin:200px 200px; animation:orbspin 30s linear infinite;}
+.h-reticle .hr2{fill:none; stroke:rgba(95,233,255,.35); transform-origin:200px 200px; animation:orbspin 18s linear infinite reverse; stroke-dasharray:40 20;}
+.h-reticle .hl{fill:none; stroke:rgba(95,233,255,.8); stroke-width:1.5;}
+.h-top{position:absolute; top:7vh; left:50%; transform:translateX(-50%); width:540px; max-width:80vw; text-align:center;}
+.h-tapewrap{overflow:hidden; width:100%; -webkit-mask-image:linear-gradient(90deg,transparent,#000 25%,#000 75%,transparent); mask-image:linear-gradient(90deg,transparent,#000 25%,#000 75%,transparent);}
+#hTape{display:flex; width:max-content;}
+#hTape span{width:90px; flex:none; font-size:12px; letter-spacing:2px; color:rgba(190,246,255,.7); border-left:1px solid rgba(95,233,255,.35);}
+.h-hdg{margin-top:4px; font-size:14px; letter-spacing:3px; color:#fff;}
+.h-col{position:absolute; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:26px;}
+.h-left{left:7vw;} .h-right{right:7vw; text-align:right;}
+.h-g b{font-size:clamp(22px,4vw,38px); font-weight:500; color:#fff;}
+.h-g span{display:block; font-size:10px; letter-spacing:2px; color:rgba(190,246,255,.6);}
+.h-g i{display:block; height:3px; background:rgba(95,233,255,.15); margin-top:6px; width:150px;}
+.h-right .h-g i{margin-left:auto;}
+.h-g u{display:block; height:100%; text-decoration:none; background:#5fe9ff; box-shadow:0 0 8px #5fe9ff; transition:width .3s;}
+.h-lock{position:absolute; width:86px; height:86px; border:1.5px dashed #ff4a3d; left:62%; top:34%; transition:left 1.2s ease, top 1.2s ease;}
+.h-lock span{position:absolute; top:100%; left:0; margin-top:4px; white-space:nowrap; font-size:10px; letter-spacing:2px; color:#ff4a3d;}
+.h-warn{position:absolute; bottom:9vh; left:50%; transform:translateX(-50%); font-size:12px; letter-spacing:4px; color:#bff6ff; text-align:center;}
+.h-warn.alert{color:#ff4a3d; animation:blink 1s infinite;}
+#hClose{position:absolute; bottom:4vh; right:5vw;}
+@media(prefers-reduced-motion:reduce){ .h-scan,.hr1,.hr2,.pulse{animation:none;} }
+</style>
+</head>
+<body>
+<div class="scanlines"></div>
+<div class="vignette"></div>
+
+<div class="app">
+  <header>
+    <div class="brand">J.A.R.V.I.S.<span>JUST A RATHER VERY INTELLIGENT SYSTEM</span></div>
+    <div class="hdr-right">
+      <div id="dateLine"></div>
+      <div class="clock" id="clock">00:00:00</div>
+      <div><span class="status-dot"></span><span id="statusText">SYSTÈME EN LIGNE</span></div>
+      <button class="btn" id="themeBtn" style="margin-top:6px; padding:4px 10px; font-size:10px;"></button>
+    </div>
+  </header>
+
+  <div id="embedWarning" style="display:none; background:rgba(255,177,92,0.08); border:1px solid var(--amber); color:var(--amber); font-size:12px; padding:10px 14px; border-radius:3px; letter-spacing:0.3px;">
+    ⚠ Micro et voix indisponibles ici : cette page est affichée dans un aperçu intégré qui bloque ces fonctions. Téléchargez le fichier <b>jarvis.html</b> et ouvrez-le directement dans Chrome (sur mobile ou PC) pour activer la voix et le micro.
+  </div>
+
+  <main>
+    <div class="panel side" id="leftPanel">
+      <div class="panel-title">ÉTAT DU SYSTÈME</div>
+      <div class="stat-row">
+        <div class="stat-label">ÉTAT DU NOYAU</div>
+        <div class="stat-val" id="coreState">IDLE</div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-label">ENTRÉE VOCALE</div>
+        <div class="stat-val" id="voiceSupport">VÉRIFICATION…</div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-label">CHARGE DE TRAITEMENT</div>
+        <div class="bar"><div class="bar-fill" id="loadBar" style="width:12%"></div></div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-label">TEMPS DE FONCTIONNEMENT</div>
+        <div class="stat-val" id="uptime">00:00:00</div>
+      </div>
+      <div class="stat-row" style="border-bottom:none;">
+        <div class="stat-label">ÉCHANGES DE SESSION</div>
+        <div class="stat-val" id="exchangeCount">0</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="core-wrap">
+        <div class="reactor" id="reactor">
+          <svg class="dial" viewBox="0 0 520 520" aria-label="Interface radiale J.A.R.V.I.S.">
+            <defs id="dialDefs">
+              <radialGradient id="og"><stop offset="0" stop-color="#fff"/><stop offset=".4" stop-color="#ff9db8" stop-opacity=".85"/><stop offset="1" stop-color="#ff3d6e" stop-opacity="0"/></radialGradient>
+              <linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#ff3d6e"/></linearGradient>
+            </defs>
+            <circle class="halo-ring" cx="260" cy="260" r="216"/>
+            <g id="dialTicks" class="ticks-spin"></g>
+            <circle class="halo-ring" cx="260" cy="260" r="112"/>
+            <g id="dialSegs"></g>
+            <g class="orb">
+              <circle class="pulse" cx="260" cy="260" r="80"/><circle class="pulse p2" cx="260" cy="260" r="80"/>
+              <circle class="orb-halo" cx="260" cy="260" r="76"/>
+              <circle cx="260" cy="260" r="58" fill="#050910" stroke="rgba(255,255,255,.12)"/>
+              <g transform="rotate(0 260 260)"><ellipse class="orb-ring r1" cx="260" cy="260" rx="46" ry="32"/></g>
+              <g transform="rotate(60 260 260)"><ellipse class="orb-ring r2" cx="260" cy="260" rx="46" ry="32"/></g>
+              <g transform="rotate(120 260 260)"><ellipse class="orb-ring r3" cx="260" cy="260" rx="46" ry="32"/></g>
+              <circle class="orb-core" cx="260" cy="260" r="16" fill="url(#og)"/>
+            </g>
+          </svg>
+        </div>
+        <div class="greet" id="greet">BONSOIR, MONSIEUR</div>
+        <div class="voice-label">ÉTAT : <b id="stateLabel">VEILLE</b></div>
+      </div>
+
+      <div class="panel-title" style="border-top:1px solid var(--line);">JOURNAL DE TRANSMISSION</div>
+      <div class="log" id="log">
+        <div class="msg jarvis">
+          <div class="who">JARVIS</div>
+          <div class="bubble">Bonsoir, Monsieur. Tous les systèmes sont opérationnels. Vous pouvez me parler ou taper votre requête ci-dessous.</div>
+        </div>
+      </div>
+
+      <div class="input-bar">
+        <button class="mic-btn" id="micBtn" title="Activer le micro">🎤</button>
+        <input type="text" id="textInput" placeholder="Parlez ou écrivez à Jarvis…" autocomplete="off">
+        <button class="btn" id="sendBtn">ENVOYER</button>
+      </div>
+      <div class="hint" id="micHint">Cliquez sur le micro pour parler • Entrée pour envoyer</div>
+    </div>
+
+    <div class="panel side">
+      <div class="panel-title">SORTIE AUDIO</div>
+      <div class="stat-row">
+        <div class="stat-label">SYNTHÈSE VOCALE</div>
+        <div class="stat-val" id="ttsSupport">VÉRIFICATION…</div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-label">VOIX DE JARVIS</div>
+        <select id="voiceSelect" style="width:100%; margin-top:6px; background:rgba(143,184,255,0.06); border:1px solid var(--line); color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:6px; border-radius:3px;">
+          <option>Chargement des voix…</option>
+        </select>
+        <div id="genderStatus" style="font-size:9px; letter-spacing:0.5px; margin-top:5px; color:var(--text-dim);"></div>
+      </div>
+      <div class="stat-row">
+        <label style="display:flex; align-items:center; gap:8px; font-size:11px; color:var(--text-dim); cursor:pointer;">
+          <input type="checkbox" id="ttsToggle" checked style="accent-color:#8fb8ff;"> RÉPONSE VOCALE ACTIVE
+        </label>
+      </div>
+      <div class="stat-row">
+        <button class="btn" id="testVoiceBtn" style="width:100%;">🔊 TESTER LA VOIX</button>
+      </div>
+      <div class="stat-row">
+        <div class="stat-label">CERVEAU LOCAL (OLLAMA)</div>
+        <input id="modelInput" placeholder="modèle, ex : llama3.1" autocomplete="off" style="width:100%; margin-top:6px; background:rgba(143,184,255,0.06); border:1px solid var(--line); color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:6px 10px; border-radius:999px; outline:none;">
+        <button class="btn" id="linkTestBtn" style="width:100%; margin-top:6px; padding:6px;">TESTER LA LIAISON</button>
+        <button class="btn" id="webBtn" style="width:100%; margin-top:6px; padding:6px;">CERVEAU HORS LIGNE (TÉLÉPHONE)</button>
+        <div id="linkStatus" style="font-size:9px; letter-spacing:.5px; margin-top:5px; color:var(--text-dim); line-height:1.5;"></div>
+      </div>
+      <div class="stat-row" style="border-bottom:none;">
+        <div class="stat-label">DIRECTIVE</div>
+        <div class="stat-val" style="font-size:11px; line-height:1.5; color:var(--text-dim);">Personnalité : assistant britannique, flegmatique, précis.</div>
+      </div>
+    </div>
+  </main>
+
+  <div class="panel" id="armory">
+    <div class="panel-title">BASE DE DONNÉES ARMURES — ARC REACTOR</div>
+    <div class="armor-grid">
+      <div class="armor-select-col">
+        <select id="armorSelect">
+          <optgroup label="Armures d'origine">
+            <option value="Mark I">Mark I</option>
+            <option value="Mark II">Mark II</option>
+            <option value="Mark III" selected>Mark III</option>
+            <option value="Mark IV">Mark IV</option>
+            <option value="Mark V (valise)">Mark V — Armure valise</option>
+            <option value="Mark VI">Mark VI</option>
+          </optgroup>
+          <optgroup label="Ère House Party Protocol">
+            <option value="Mark VII">Mark VII</option>
+            <option value="Mark VIII">Mark VIII</option>
+            <option value="Mark IX">Mark IX</option>
+            <option value="Mark XV Sneaky">Mark XV — Sneaky</option>
+            <option value="Mark XVII Heartbreaker">Mark XVII — Heartbreaker</option>
+            <option value="Mark XXI Midas">Mark XXI — Midas</option>
+            <option value="Mark XXIV Tank">Mark XXIV — Tank</option>
+            <option value="Mark XXXIII Silver Centurion">Mark XXXIII — Silver Centurion</option>
+            <option value="Mark XXXV Red Snapper">Mark XXXV — Red Snapper</option>
+            <option value="Mark XXXIX Starboost (spatiale)">Mark XXXIX — Starboost (spatiale)</option>
+            <option value="Mark XLI Bones">Mark XLI — Bones</option>
+          </optgroup>
+          <optgroup label="Ère nanotechnologie">
+            <option value="Mark XLII">Mark XLII</option>
+            <option value="Mark XLIII">Mark XLIII</option>
+            <option value="Mark XLIV Hulkbuster">Mark XLIV — Hulkbuster</option>
+            <option value="Mark XLV">Mark XLV</option>
+            <option value="Mark XLVI">Mark XLVI</option>
+            <option value="Mark XLVII">Mark XLVII</option>
+            <option value="Mark L">Mark L</option>
+            <option value="Mark LXXXV">Mark LXXXV</option>
+          </optgroup>
+          <optgroup label="Variantes & alliés">
+            <option value="War Machine">War Machine</option>
+            <option value="Iron Patriot">Iron Patriot</option>
+            <option value="Rescue">Rescue</option>
+            <option value="Hulkbuster Veronica (tourelle)">Veronica — Tourelle Hulkbuster</option>
+            <option value="Iron Spider (assistance Stark)">Iron Spider</option>
+          </optgroup>
+          <optgroup label="Comics (au-delà du MCU)">
+            <option value="Extremis Armor (comics)">Extremis Armor</option>
+            <option value="Bleeding Edge Armor (comics)">Bleeding Edge Armor</option>
+            <option value="Model 1854 Modular Armor (comics)">Model 1854 — Modular Armor</option>
+            <option value="Space Armor (comics)">Space Armor</option>
+            <option value="Stealth Armor (comics)">Stealth Armor</option>
+            <option value="Thorbuster (comics)">Thorbuster</option>
+            <option value="Endo-Sym Armor (comics)">Endo-Sym Armor</option>
+          </optgroup>
+        </select>
+        <button class="btn" id="showArmorBtn" style="width:100%;">📡 ANALYSER</button>
+        <div class="hint" style="margin-top:8px;">Jarvis détaille la fiche technique dans le journal, à l'oral et à l'écrit.</div>
+        <div class="hint" style="margin-top:6px;">Une armure absente de la liste ? Demandez-la directement dans le chat — Jarvis répond sur n'importe quel modèle.</div>
+      </div>
+      <div>
+        <div class="armor-info">
+          <div class="armor-name" id="armorName">Mark III</div>
+          <div class="armor-desc" id="armorDesc">Sélectionnez une armure puis cliquez sur ANALYSER pour recevoir la fiche technique complète.</div>
+          <div class="armor-note">⚠ Schéma générique et non contractuel : je ne peux pas reproduire le design exact des armures, protégé par le droit d'auteur Marvel/Disney. La couleur d'accent évoque simplement chaque modèle.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div>INTERFACE CLASSE STARK // VERSION 4.0</div>
+    <div id="brainTag">NOYAU : DISTANT</div>
+  </footer>
+</div>
+
+<div id="boot"><pre id="bootTxt"></pre></div>
+<div id="helmet" aria-hidden="true">
+  <div class="h-frame"></div><div class="h-scan"></div>
+  <svg class="h-reticle" viewBox="0 0 400 400">
+    <circle class="hr1" cx="200" cy="200" r="150"/><circle class="hr2" cx="200" cy="200" r="108"/>
+    <circle cx="200" cy="200" r="5" fill="#5fe9ff"/>
+    <path class="hl" d="M10 200H70M330 200H390M200 10V70M200 330V390M150 150h-18v18M250 150h18v18M150 250h-18v-18M250 250h18v-18"/>
+  </svg>
+  <div class="h-top"><div class="h-tapewrap"><div id="hTape"></div></div><div class="h-hdg" id="hHdg">N 000°</div></div>
+  <div class="h-col h-left">
+    <div class="h-g"><b id="hAlt">0</b><span>ALTITUDE (M)</span></div>
+    <div class="h-g"><b id="hSpd">0</b><span>VITESSE (KM/H)</span></div>
+    <div class="h-g"><b id="hMach">0.00</b><span>MACH</span></div>
+  </div>
+  <div class="h-col h-right">
+    <div class="h-g"><b id="hPwr">100</b><b>%</b><span>PUISSANCE RÉACTEUR</span><i><u id="hPwrBar" style="width:100%"></u></i></div>
+    <div class="h-g"><b>100</b><b>%</b><span>INTÉGRITÉ ARMURE</span><i><u style="width:100%"></u></i></div>
+    <div class="h-g"><b>2</b><span>RÉPULSEURS : OK</span></div>
+  </div>
+  <div class="h-lock" id="hLock"><span id="hLockTxt">CIBLE 01 — 312 M</span></div>
+  <div class="h-warn" id="hWarn">TOUS SYSTÈMES NOMINAUX</div>
+  <button class="btn" id="hClose">QUITTER LE CASQUE (ÉCHAP)</button>
+</div>
+<script>
+// ---------- Clock & uptime ----------
+const startTime = Date.now();
+function pad(n){return n.toString().padStart(2,'0');}
+function tick(){
+  const now = new Date();
+  const h = now.getHours();
+  document.getElementById('greet').textContent = (h<5||h>=18 ? 'BONSOIR' : 'BONJOUR') + ', MONSIEUR';
+  document.getElementById('dateLine').textContent = now.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).toUpperCase();
+  document.getElementById('clock').textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const up = Math.floor((Date.now()-startTime)/1000);
+  document.getElementById('uptime').textContent = `${pad(Math.floor(up/3600))}:${pad(Math.floor((up%3600)/60))}:${pad(up%60)}`;
+}
+setInterval(tick,1000); tick();
+
+// fake processing load flicker for atmosphere
+setInterval(()=>{
+  const v = 8 + Math.random()*20;
+  document.getElementById('loadBar').style.width = v+'%';
+  document.getElementById('dialLoad').textContent = Math.round(v)+'%';
+},1800);
+
+// ---------- Radial dial (segments cliquables) ----------
+const _xy = (r,a)=>{const t=a*Math.PI/180; return [260+r*Math.sin(t), 260-r*Math.cos(t)];};
+const _pt = (r,a)=>_xy(r,a).map(v=>v.toFixed(1)).join(' ');
+const _ring = (r0,r1,a0,a1)=>`M${_pt(r1,a0)}A${r1} ${r1} 0 0 1 ${_pt(r1,a1)}L${_pt(r0,a1)}A${r0} ${r0} 0 0 0 ${_pt(r0,a0)}Z`;
+function quick(text){ document.getElementById('textInput').value = text; handleSend(); }
+const TOP_SEGS = [
+  {l:'BRIEF',   run:()=>quick("Fais-moi un briefing d'accueil et dis-moi ce que tu peux faire pour moi aujourd'hui.")},
+  {l:'TÂCHES',  run:()=>quick("Aide-moi à organiser mes tâches du jour en quelques priorités claires.")},
+  {l:'PROJETS', run:()=>quick("Parlons de mes projets : pose-moi les bonnes questions pour les faire avancer.")},
+  {l:'CODE',    run:()=>quick("J'ai une question de programmation, es-tu prêt à m'aider ?")},
+  {l:'SYSTÈME', run:()=>quick("Fais-moi un rapport de diagnostic de tes systèmes, à ta manière.")},
+  {l:'CASQUE',  run:()=>openHelmet()},
+  {l:'ARMURES', run:()=>document.getElementById('armory').scrollIntoView({behavior:'smooth'})}
+];
+const BOT_SEGS = [
+  {l:'MICRO',   run:()=>document.getElementById('micBtn').click()},
+  {l:'VOIX',    run:()=>document.getElementById('testVoiceBtn').click()},
+  {l:'JOURNAL', run:()=>document.getElementById('log').scrollIntoView({behavior:'smooth', block:'center'})},
+  {l:'SAISIE',  run:()=>document.getElementById('textInput').focus()}
+];
+function buildDial(){
+  let defs='', segs='', ticks='', n=0; const all=[];
+  const make=(list,a0,a1,r0,r1,bottom)=>{
+    const w=(a1-a0)/list.length, gap=2.4;
+    list.forEach((it,i)=>{
+      const lo = bottom ? a1-(i+1)*w+gap/2 : a0+i*w+gap/2;
+      const hi = bottom ? a1-i*w-gap/2 : a0+(i+1)*w-gap/2;
+      const rm = (r0+r1)/2 + (bottom ? 4 : -4), id = 'dp'+(n++);
+      const d = bottom ? `M${_pt(rm,hi)}A${rm} ${rm} 0 0 0 ${_pt(rm,lo)}` : `M${_pt(rm,lo)}A${rm} ${rm} 0 0 1 ${_pt(rm,hi)}`;
+      defs += `<path id="${id}" fill="none" d="${d}"/>`;
+      segs += `<g class="segg${bottom?' seg-bot':''}" tabindex="0" role="button" aria-label="${it.l}" data-i="${all.length}"><path class="seg" d="${_ring(r0,r1,lo,hi)}"/><text class="seg-label"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${it.l}</textPath></text></g>`;
+      all.push(it);
+    });
+  };
+  make(TOP_SEGS,-104,104,128,176,false);
+  make(BOT_SEGS,124,236,128,172,true);
+  const mini=(a,id,label,val)=>{ const [x,y]=_xy(150,a);
+    return `<g class="mini"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="17"/><text class="mv" id="${id}" x="${x.toFixed(1)}" y="${(y+2).toFixed(1)}">${val}</text><text class="ml" x="${x.toFixed(1)}" y="${(y+11).toFixed(1)}">${label}</text></g>`; };
+  segs += mini(-114.5,'dialLoad','CPU','12%') + mini(114.5,'dialEx','ÉCH.','0');
+  for(let i=0;i<72;i++){
+    const maj = i%6===0, a=i*5, p=_xy(maj?196:199,a), q=_xy(204,a);
+    ticks += `<line class="tick-ln${maj?' maj':''}" x1="${p[0].toFixed(1)}" y1="${p[1].toFixed(1)}" x2="${q[0].toFixed(1)}" y2="${q[1].toFixed(1)}"/>`;
+  }
+  document.getElementById('dialDefs').insertAdjacentHTML('beforeend', defs);
+  const segsEl = document.getElementById('dialSegs');
+  segsEl.innerHTML = segs;
+  document.getElementById('dialTicks').innerHTML = ticks;
+  segsEl.querySelectorAll('.segg').forEach(g=>{
+    const it = all[+g.dataset.i];
+    g.addEventListener('click', it.run);
+    g.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); it.run(); } });
+  });
+}
+buildDial();
+
+// ---------- Core visual state ----------
+const reactor = document.getElementById('reactor');
+const stateLabel = document.getElementById('stateLabel');
+const coreState = document.getElementById('coreState');
+const statusText = document.getElementById('statusText');
+function setState(s){
+  reactor.className = 'reactor' + (s!=='idle' ? ' state-'+s : '');
+  const labels = {idle:'VEILLE', listening:'ÉCOUTE…', thinking:'ANALYSE…', speaking:'RÉPONSE'};
+  stateLabel.textContent = labels[s] || s.toUpperCase();
+  coreState.textContent = (labels[s] || s).toUpperCase();
+  statusText.textContent = s==='idle' ? 'SYSTÈME EN LIGNE' : labels[s].toUpperCase();
+}
+setState('idle');
+
+// ---------- Chat log ----------
+const logEl = document.getElementById('log');
+let exchangeCount = 0;
+function setEx(){ document.getElementById('exchangeCount').textContent = exchangeCount; document.getElementById('dialEx').textContent = exchangeCount; }
+function addMsg(who, text){
+  const div = document.createElement('div');
+  div.className = 'msg ' + (who==='user' ? 'user' : 'jarvis');
+  div.innerHTML = `<div class="who">${who==='user' ? 'VOUS' : 'JARVIS'}</div><div class="bubble"></div>`;
+  div.querySelector('.bubble').textContent = text;
+  logEl.appendChild(div);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+// ---------- Speech synthesis ----------
+function showEmbedWarning(){
+  const el = document.getElementById('embedWarning');
+  if(el) el.style.display = 'block';
+}
+let selectedVoice = null;
+let voicesLoaded = false;
+const voiceSelect = document.getElementById('voiceSelect');
+
+// Noms de voix masculines connues, toutes plateformes/langues confondues
+const MALE_NAMES = /(paul|thomas|daniel|nicolas|guillaume|henri|yannick|antoine|michel|pierre|mathieu|xavier|remi|rémi|jean|luc|marc|david|alex(?!a)|fred|arnaud|male|homme|man\b|-b-|-d-)/i;
+const FEMALE_NAMES = /(julie|amelie|amélie|audrey|celine|céline|chantal|marie|claire|virginie|charlotte|aurelie|aurélie|female|femme|woman|-a-|-c-)/i;
+
+function isLikelyMale(v){
+  const n = v.name.toLowerCase();
+  if(FEMALE_NAMES.test(n)) return false;
+  if(MALE_NAMES.test(n)) return true;
+  return null; // genre inconnu
+}
+
+function scoreVoice(v){
+  const male = isLikelyMale(v);
+  const isFr = /fr/i.test(v.lang);
+  if(isFr && male === true) return 0;      // français + masculin confirmé
+  if(!isFr && male === true) return 1;      // masculin confirmé, autre langue
+  if(isFr && male === null) return 2;       // français, genre inconnu
+  if(male === false) return 8;              // féminin détecté -> en dernier
+  return 5;
+}
+
+function populateVoices(){
+  const voices = speechSynthesis.getVoices();
+  if(!voices.length) return false;
+  voicesLoaded = true;
+
+  const sorted = [...voices].sort((a,b)=>scoreVoice(a)-scoreVoice(b));
+  voiceSelect.innerHTML = '';
+  sorted.forEach((v)=>{
+    const male = isLikelyMale(v);
+    const tag = male === true ? '♂' : male === false ? '♀' : '?';
+    const opt = document.createElement('option');
+    opt.value = v.name;
+    opt.textContent = `[${tag}] ${v.name} (${v.lang})`;
+    voiceSelect.appendChild(opt);
+  });
+
+  // Choisit la meilleure voix masculine dispo ; à défaut, la première voix française.
+  selectedVoice = sorted.find(v=>isLikelyMale(v)===true) || sorted[0] || null;
+  if(selectedVoice) voiceSelect.value = selectedVoice.name;
+
+  const genderStatus = document.getElementById('genderStatus');
+  if(genderStatus){
+    if(selectedVoice && isLikelyMale(selectedVoice)===true){
+      genderStatus.textContent = 'VOIX MASCULINE CONFIRMÉE';
+      genderStatus.style.color = 'var(--cyan)';
+    } else {
+      genderStatus.textContent = 'AUCUNE VOIX MASCULINE DÉTECTÉE — sélectionnez-en une manuellement ci-dessus si possible';
+      genderStatus.style.color = 'var(--amber)';
+    }
+  }
+  return true;
+}
+
+voiceSelect.addEventListener('change', ()=>{
+  const voices = speechSynthesis.getVoices();
+  selectedVoice = voices.find(v=>v.name === voiceSelect.value) || selectedVoice;
+  const genderStatus = document.getElementById('genderStatus');
+  if(genderStatus && selectedVoice){
+    const male = isLikelyMale(selectedVoice);
+    genderStatus.textContent = male === true ? 'VOIX MASCULINE CONFIRMÉE'
+      : male === false ? 'ATTENTION : cette voix est probablement féminine'
+      : 'GENRE NON CONFIRMÉ POUR CETTE VOIX';
+    genderStatus.style.color = male === false ? 'var(--amber)' : 'var(--cyan)';
+  }
+});
+
+if('speechSynthesis' in window){
+  document.getElementById('ttsSupport').textContent = 'DISPONIBLE';
+  if(!populateVoices()){
+    // Chrome charge les voix de façon asynchrone : on réessaie sur l'événement et par polling
+    speechSynthesis.onvoiceschanged = populateVoices;
+    let attempts = 0;
+    const poll = setInterval(()=>{
+      attempts++;
+      if(populateVoices() || attempts > 20) clearInterval(poll);
+    }, 250);
+  }
+} else {
+  document.getElementById('ttsSupport').textContent = 'INDISPONIBLE';
+  voiceSelect.innerHTML = '<option>Indisponible dans ce contexte</option>';
+  showEmbedWarning();
+}
+
+// Beaucoup de navigateurs bloquent l'audio tant qu'il n'y a pas eu d'interaction :
+// on "amorce" la synthèse au premier clic n'importe où sur la page.
+let audioUnlocked = false;
+function unlockAudio(){
+  if(audioUnlocked || !('speechSynthesis' in window)) return;
+  const primer = new SpeechSynthesisUtterance(' ');
+  primer.volume = 0;
+  speechSynthesis.speak(primer);
+  audioUnlocked = true;
+  document.removeEventListener('click', unlockAudio);
+}
+document.addEventListener('click', unlockAudio);
+
+function speak(text){
+  if(!('speechSynthesis' in window)) return;
+  if(!document.getElementById('ttsToggle').checked) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  if(selectedVoice) u.voice = selectedVoice;
+  u.lang = 'fr-FR';
+  u.rate = 1.0; u.pitch = 0.75;
+  u.onstart = ()=> setState('speaking');
+  u.onend = ()=> setState('idle');
+  u.onerror = ()=> setState('idle');
+  speechSynthesis.speak(u);
+}
+
+document.getElementById('testVoiceBtn').addEventListener('click', ()=>{
+  audioUnlocked = true;
+  speak("Bonjour, Monsieur. Voici ma voix. Tous les systèmes fonctionnent normalement.");
+});
+
+// ---------- Speech recognition ----------
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let listening = false;
+const micBtn = document.getElementById('micBtn');
+const micHint = document.getElementById('micHint');
+
+if(SpeechRecognition){
+  document.getElementById('voiceSupport').textContent = 'DISPONIBLE';
+  recognition = new SpeechRecognition();
+  recognition.lang = 'fr-FR';
+  recognition.continuous = false;
+  recognition.interimResults = false;
+
+  recognition.onstart = ()=>{ listening = true; micBtn.classList.add('on'); setState('listening'); micHint.textContent = "J'écoute…"; };
+  recognition.onend = ()=>{ listening = false; micBtn.classList.remove('on'); if(reactor.className.includes('listening')) setState('idle'); micHint.textContent='Cliquez sur le micro pour parler • Entrée pour envoyer'; };
+  recognition.onerror = (e)=>{ micHint.textContent = 'Erreur micro : ' + e.error; };
+  recognition.onresult = (e)=>{
+    const transcript = e.results[0][0].transcript;
+    document.getElementById('textInput').value = transcript;
+    handleSend();
+  };
+
+  micBtn.addEventListener('click', ()=>{
+    if(listening){ recognition.stop(); } else { recognition.start(); }
+  });
+} else {
+  document.getElementById('voiceSupport').textContent = 'INDISPONIBLE';
+  micBtn.disabled = true;
+  micBtn.style.opacity = '0.3';
+  micHint.textContent = "Micro indisponible ici. Téléchargez le fichier et ouvrez-le dans Chrome pour l'activer.";
+  showEmbedWarning();
+}
+
+// ---------- Claude API call ----------
+const SYSTEM_PROMPT = `Tu es J.A.R.V.I.S., l'assistant IA sophistiqué de Tony Stark. Personnalité : flegmatique, courtois, pointe d'humour britannique pince-sans-rire, extrêmement compétent, jamais servile à l'excès. Tu appelles l'utilisateur "Monsieur" (ou "Madame" si précisé) sauf indication contraire. Réponds en français, de façon concise et naturelle car tes réponses seront lues à voix haute — évite les listes à puces et le formatage markdown, privilégie des phrases fluides.
+
+Tu joues double rôle : (1) quand on te demande des détails sur les armures Iron Man / Stark Industries, tu donnes une fiche technique riche et précise (matériaux, propulsion, armement, capteurs, évolutions par rapport aux modèles précédents, apparitions notables) en restant dans le ton d'un système de bord qui connaît son créateur par cœur ; (2) pour toute autre question — culture générale, science, actualité, aide pratique, code, etc. — tu réponds normalement comme un assistant IA généraliste compétent, toujours avec ta personnalité mais sans forcer de références Iron Man hors sujet. Reste utile et précis avant tout.`;
+
+async function askJarvis(userText){
+  setState('thinking');
+  try{
+    const reply = (await brain(userText)) || "Toutes mes excuses, Monsieur, je n'ai pas de réponse à formuler pour le moment.";
+    addMsg('jarvis', reply);
+    exchangeCount++; setEx();
+    speak(reply);
+  } catch(err){
+    console.error(err);
+    const msg = "Aucun noyau disponible, Monsieur. Téléchargez le cerveau hors ligne dans le panneau « Cerveau local », ou lancez Ollama. Mes commandes locales et les fiches d'armures restent actives.";
+    addMsg('jarvis', msg);
+    setState('idle');
+  }
+}
+
+function handleSend(){
+  const input = document.getElementById('textInput');
+  const text = input.value.trim();
+  if(!text) return;
+  addMsg('user', text);
+  input.value = '';
+  const loc = localReply(text);
+  if(loc){ addMsg('jarvis', loc); exchangeCount++; setEx(); speak(loc); return; }
+  askJarvis(text);
+}
+
+document.getElementById('sendBtn').addEventListener('click', handleSend);
+document.getElementById('textInput').addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter') handleSend();
+});
+
+// ---------- Armor database ----------
+const armorSelect = document.getElementById('armorSelect');
+const armorName = document.getElementById('armorName');
+const armorDesc = document.getElementById('armorDesc');
+const wireframe = document.createElement('div'); // maquette retirée : élément factice
+
+// Accent couleur + échelle indicative par famille d'armure (schéma générique, pas un design réel)
+const ARMOR_STYLE = [
+  { match: /hulkbuster|veronica/i, accent: '#ff6b4d', glow: 'rgba(255,107,77,0.4)', scale: 1.35 },
+  { match: /war machine|iron patriot/i, accent: '#9aa5b1', glow: 'rgba(154,165,177,0.4)', scale: 1.05 },
+  { match: /rescue/i, accent: '#ff8fd6', glow: 'rgba(255,143,214,0.4)', scale: 0.92 },
+  { match: /mark i\b|mark ii\b/i, accent: '#c9c9c9', glow: 'rgba(201,201,201,0.35)', scale: 1 },
+  { match: /mark iii\b|silver centurion|midas/i, accent: '#ffcf4d', glow: 'rgba(255,207,77,0.4)', scale: 1 },
+  { match: /stealth|sneaky|space/i, accent: '#8fb8ff', glow: 'rgba(143,184,255,0.4)', scale: 1 },
+  { match: /extremis|bleeding edge/i, accent: '#ff5b5b', glow: 'rgba(255,91,91,0.4)', scale: 1 },
+];
+function styleForArmor(label){
+  for(const s of ARMOR_STYLE){ if(s.match.test(label)) return s; }
+  return { accent: '#8fb8ff', glow: 'rgba(143,184,255,0.35)', scale: 1 };
+}
+function applyArmorVisual(label){
+  const s = styleForArmor(label);
+  wireframe.style.setProperty('--wf-accent', s.accent);
+  wireframe.style.setProperty('--wf-accent-glow', s.glow);
+  wireframe.style.setProperty('--wf-scale', s.scale);
+}
+
+armorSelect.addEventListener('change', ()=>{
+  const label = armorSelect.options[armorSelect.selectedIndex].textContent;
+  armorName.textContent = label;
+  armorDesc.textContent = "Cliquez sur ANALYSER pour recevoir la fiche technique complète.";
+  applyArmorVisual(label);
+});
+armorName.textContent = armorSelect.options[armorSelect.selectedIndex].textContent;
+applyArmorVisual(armorName.textContent);
+
+document.getElementById('showArmorBtn').addEventListener('click', async ()=>{
+  const mark = armorSelect.value;
+  const label = armorSelect.options[armorSelect.selectedIndex].textContent;
+  armorName.textContent = label;
+  armorDesc.textContent = "Analyse en cours…";
+  applyArmorVisual(label);
+  setState('thinking');
+
+  const prompt = `Fais-moi une fiche technique détaillée de l'armure Iron Man "${mark}" : matériaux et blindage, système de propulsion, armement embarqué, capteurs et IA de bord, et ce qui la distingue des modèles précédents.`;
+  addMsg('user', `Analyse demandée : ${label}`);
+  document.getElementById('log').scrollIntoView({behavior:'smooth', block:'center'});
+  if(ARMOR_DB[mark]){
+    const f = ARMOR_DB[mark] + " Pour plus de détails, posez-moi la question dans le chat.";
+    armorDesc.textContent = f; addMsg('jarvis', f); exchangeCount++; setEx(); setState('idle'); speak(f); return;
+  }
+
+  try{
+    const reply = (await brain(prompt)) || "Données indisponibles pour le moment, Monsieur.";
+    armorDesc.textContent = reply;
+    addMsg('jarvis', reply);
+    exchangeCount++; setEx();
+    speak(reply);
+  } catch(err){
+    console.error(err);
+    armorDesc.textContent = "Échec de la connexion aux archives Stark Industries.";
+    setState('idle');
+  }
+});
+
+// ---------- Thème film / K.A.R.A. ----------
+function setTheme(film){
+  document.body.classList.toggle('film', film);
+  document.getElementById('themeBtn').textContent = film ? 'MODE : FILM' : 'MODE : K.A.R.A.';
+  try{ localStorage.setItem('jv_theme', film ? 'film' : 'kara'); }catch(e){}
+}
+let _th = 'film'; try{ _th = localStorage.getItem('jv_theme') || 'film'; }catch(e){}
+setTheme(_th === 'film');
+document.getElementById('themeBtn').addEventListener('click', ()=>setTheme(!document.body.classList.contains('film')));
+
+// ---------- HUD de casque ----------
+const helmet = document.getElementById('helmet');
+let hTimer = null; const hs = {alt:1200, spd:640, hdg:20, t:0};
+const _dirs = ['N','030','060','E','120','150','S','210','240','O','300','330'];
+document.getElementById('hTape').innerHTML = [..._dirs,..._dirs,..._dirs].map(d=>`<span>${d}</span>`).join('');
+const WARN = [['TOUS SYSTÈMES NOMINAUX',0],['CIBLE VERROUILLÉE',1],['ALERTE : MENACE À 11 HEURES',1],['RÉPULSEURS EN CHARGE',0]];
+function hTick(){
+  const $ = id=>document.getElementById(id);
+  hs.t++; hs.alt = Math.max(0, hs.alt + (Math.random()-.45)*18); hs.spd = Math.max(0, hs.spd + (Math.random()-.5)*14); hs.hdg = (hs.hdg + .6) % 360;
+  $('hAlt').textContent = Math.round(hs.alt); $('hSpd').textContent = Math.round(hs.spd); $('hMach').textContent = (hs.spd/1225).toFixed(2);
+  const pw = 97 + Math.round(Math.random()*3); $('hPwr').textContent = pw; $('hPwrBar').style.width = pw+'%';
+  $('hHdg').textContent = ['N','NE','E','SE','S','SO','O','NO'][Math.round(hs.hdg/45)%8] + ' ' + String(Math.round(hs.hdg)).padStart(3,'0') + '°';
+  $('hTape').style.transform = `translateX(${270 - ((12 + hs.hdg/30)*90 + 45)}px)`;
+  if(hs.t % 15 === 0){
+    const l = $('hLock'); l.style.left = (20 + Math.random()*58) + '%'; l.style.top = (24 + Math.random()*40) + '%';
+    $('hLockTxt').textContent = 'CIBLE 0' + (1 + Math.floor(Math.random()*4)) + ' — ' + (120 + Math.floor(Math.random()*600)) + ' M';
+  }
+  if(hs.t % 35 === 0){ const w = WARN[Math.floor(Math.random()*WARN.length)]; const el = $('hWarn'); el.textContent = w[0]; el.classList.toggle('alert', !!w[1]); }
+}
+function openHelmet(silent){
+  helmet.classList.add('on'); helmet.setAttribute('aria-hidden','false');
+  hTick(); clearInterval(hTimer); hTimer = setInterval(hTick, 120);
+  if(!silent) speak("Interface de casque activée, Monsieur.");
+}
+function closeHelmet(){ helmet.classList.remove('on'); helmet.setAttribute('aria-hidden','true'); clearInterval(hTimer); }
+document.getElementById('hClose').addEventListener('click', closeHelmet);
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeHelmet(); });
+
+// ---------- Commandes locales (sans connexion) ----------
+const _norm = t=>t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+const _roman = n=>{ let r=''; for(const [v,sy] of [[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']]){ while(n>=v){ r+=sy; n-=v; } } return r; };
+function localReply(raw){
+  const t = _norm(raw), now = new Date();
+  if(/\b(tais-toi|silence|stop)\b/.test(t)){ speechSynthesis.cancel(); return "Très bien, Monsieur."; }
+  if(/\bcasque\b|\bmode hud\b/.test(t)){ openHelmet(true); return "Interface de casque activée, Monsieur."; }
+  if(/mode film/.test(t)){ setTheme(true); return "Affichage cinématographique rétabli, Monsieur."; }
+  if(/mode (kara|k\.a\.r\.a)/.test(t)){ setTheme(false); return "Affichage K.A.R.A. activé, Monsieur."; }
+  if(/quelle heure|l'heure/.test(t)) return `Il est ${pad(now.getHours())} heures ${pad(now.getMinutes())}, Monsieur.`;
+  if(/quel jour|la date|quelle date/.test(t)) return "Nous sommes le " + now.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'}) + ", Monsieur.";
+  if(/^(bonjour|bonsoir|salut|hello|coucou)\b/.test(t)) return "À votre service, Monsieur. Que puis-je faire pour vous ?";
+  if(/^merci/.test(t)) return "Je vous en prie, Monsieur.";
+  if(/diagnostic|statut|etat du systeme/.test(t)) return "Tous les systèmes sont opérationnels, Monsieur. Réacteur Arc à 100 pour cent, liaison vocale active, aucune anomalie détectée.";
+  if(/^(aide|help)\b|que sais-tu faire/.test(t)) return "En local, je comprends : l'heure, la date, le diagnostic, « mode casque », « mode film », « mode kara », et « montre l'armure Mark 85 ». Le reste passe par mon noyau distant.";
+  if(/armure|mark|montre|affiche|ouvre/.test(t)){
+    const opts = [...armorSelect.options]; let idx = -1; const m = t.match(/mark\s*(\d+)/);
+    if(m){ const r = _roman(+m[1]).toLowerCase(); idx = opts.findIndex(o=>{ const v = o.value.toLowerCase(); return v === 'mark '+r || v.startsWith('mark '+r+' '); }); }
+    if(idx < 0) idx = opts.findIndex(o=>{ const k = _norm(o.value).replace(/mark [ivxlc]+\s*/,'').replace(/\(.*?\)/g,'').trim(); return k.length > 3 && t.includes(k); });
+    if(idx >= 0){
+      armorSelect.selectedIndex = idx; armorSelect.dispatchEvent(new Event('change'));
+      document.getElementById('armory').scrollIntoView({behavior:'smooth'});
+      return `Armure ${armorName.textContent} chargée dans l'armurerie, Monsieur. Cliquez sur Analyser pour la fiche technique.`;
+    }
+  }
+  return null;
+}
+
+// ---------- Séquence de démarrage ----------
+(function(){
+  const boot = document.getElementById('boot'), out = document.getElementById('bootTxt');
+  const L = ['STARK INDUSTRIES // MAINFRAME','CHARGEMENT DU NOYAU J.A.R.V.I.S. ...... OK','RÉACTEUR ARC .......................... 100 %','SYSTÈMES D\'ARMURE .................... SYNCHRONISÉS','LIAISON VOCALE ........................ EN ATTENTE','','BONSOIR, MONSIEUR.'];
+  let i = 0, done = false;
+  function end(){ if(done) return; done = true; boot.classList.add('off'); setTimeout(()=>boot.remove(), 900); }
+  function next(){ if(done) return; if(i < L.length){ out.textContent += L[i++] + '\n'; setTimeout(next, 380); } else setTimeout(end, 700); }
+  boot.addEventListener('click', end); next();
+})();
+
+// ---------- Cerveau local (Ollama) avec repli sur Claude ----------
+const OLLAMA = 'http://localhost:11434';
+let hist = [];
+const getModel = ()=>{ try{ return localStorage.getItem('jv_model') || ''; }catch(e){ return ''; } };
+function updateBrainTag(){ const m = getModel(); document.getElementById('brainTag').textContent = m ? 'NOYAU : OLLAMA · ' + m.toUpperCase() : (webReady() ? 'NOYAU : TÉLÉPHONE (HORS LIGNE)' : 'NOYAU : AUCUN'); }
+async function brain(text){
+  const model = getModel();
+  if(model){
+    try{
+      const msgs = [...hist, {role:'user', content:text}];
+      const r = await fetch(OLLAMA + '/api/chat', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({model, stream:false, options:{num_predict:500}, messages:[{role:'system', content:SYSTEM_PROMPT}, ...msgs]})
+      });
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      const out = ((d.message && d.message.content) || '').trim();
+      if(out){ hist = [...msgs, {role:'assistant', content:out}].slice(-12); return out; }
+    }catch(e){ console.warn('Ollama indisponible :', e); }
+  }
+  if(webReady()) return await webBrain(text);
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({model:"claude-sonnet-4-6", max_tokens:1000, system:SYSTEM_PROMPT, messages:[{role:"user", content:text}]})
+  });
+  const data = await response.json();
+  return (data.content || []).filter(b=>b.type==='text').map(b=>b.text).join('\n').trim();
+}
+const modelInput = document.getElementById('modelInput'), linkStatus = document.getElementById('linkStatus');
+modelInput.value = getModel(); updateBrainTag();
+modelInput.addEventListener('change', ()=>{ try{ localStorage.setItem('jv_model', modelInput.value.trim()); }catch(e){} hist = []; updateBrainTag(); });
+async function testLink(auto){
+  try{
+    const r = await fetch(OLLAMA + '/api/tags'); const d = await r.json();
+    const names = (d.models || []).map(m=>m.name);
+    if(!names.length){ linkStatus.textContent = "OLLAMA EN LIGNE, mais aucun modèle installé. Dans un terminal : ollama pull llama3.1"; return; }
+    if(!modelInput.value.trim()){ modelInput.value = names[0]; modelInput.dispatchEvent(new Event('change')); }
+    linkStatus.style.color = 'var(--cyan)';
+    linkStatus.textContent = 'LIAISON ÉTABLIE — modèles : ' + names.join(', ');
+  }catch(e){
+    linkStatus.style.color = 'var(--amber)';
+    linkStatus.textContent = auto ? '' : "OLLAMA INJOIGNABLE. Lancez Ollama ; si le blocage vient du navigateur (CORS), définissez OLLAMA_ORIGINS=* puis redémarrez Ollama.";
+  }
+}
+document.getElementById('linkTestBtn').addEventListener('click', ()=>testLink(false));
+testLink(true);
+
+// ---------- Fiches d'armures hors ligne ----------
+const ARMOR_DB = {
+ 'Mark I': "Première armure, forgée en captivité en Afghanistan (Iron Man, 2008) par Tony Stark et Ho Yinsen à partir de débris d'armes Stark. Blindage de fer brut, sans vol : elle marche. Armement : lance-flammes au poignet. Le premier Réacteur Arc alimente l'armure et empêche les éclats d'atteindre le cœur de Tony.",
+ 'Mark II': "Prototype de vol construit à Malibu après l'évasion (Iron Man, 2008). Coque argentée polie, propulseurs aux mains et aux pieds. Elle a servi aux premiers essais et révélé le problème de givrage en altitude, corrigé sur la Mark III. Reprise plus tard par James Rhodes.",
+ 'Mark III': "L'armure rouge et or emblématique (Iron Man, 2008). Alliage or-titane qui résout le givrage, répulseurs, missiles et armes embarquées, supervisés par JARVIS. Elle affronte l'Iron Monger et fixe l'image d'Iron Man.",
+ 'Mark V (valise)': "Armure portable (Iron Man 2) : elle se déploie depuis une mallette, comme à Monaco. Blindage léger, assemblage rapide par modules, répulseurs et gants-armes. Elle sacrifie la robustesse à la mobilité et affronte Ivan Vanko.",
+ 'Mark VI': "Armure d'Iron Man 2 dotée du Réacteur Arc triangulaire alimenté par le nouvel élément synthétisé par Tony. Répulseurs et missiles intégrés. Elle réapparaît dans The Avengers (2012).",
+ 'Mark VII': "Armure de la bataille de New York (The Avengers, 2012), assemblée sur Tony depuis une plateforme du balcon de la Stark Tower. Pensée pour le combat : missiles à l'épaule, répulseurs renforcés. Elle affronte les Chitauris et guide l'ogive vers le portail.",
+ 'Mark XLII': "Armure d'Iron Man 3 (2013), surnommée Prodigal Son. Ses pièces autonomes, pilotées par JARVIS, volent vers Tony et s'assemblent sur lui, même à distance. Armement standard (répulseurs, missiles) : sa particularité est l'assemblage à distance, au prix d'une certaine fragilité.",
+ 'Mark XLIV Hulkbuster': "Armure modulaire anti-Hulk (L'Ère d'Ultron, 2015), déployée par le satellite Veronica et emboîtée sur une armure de base. Blindage très épais, force démultipliée par des actionneurs, poings renforcés. Elle affronte Hulk à Johannesburg.",
+ 'Mark L': "Armure nanotechnologique d'Avengers : Infinity War (2018), stockée dans le Réacteur Arc de la poitrine et formée à la demande autour de Tony. Les nanites créent à volonté armes, bouclier, ailes ou lames : son atout est l'adaptabilité instantanée. Utilisée à Titan contre Thanos.",
+ 'Mark LXXXV': "Armure nanotechnologique d'Avengers : Endgame (2019). Elle se reforme et se renforce à la demande par nanites, sur le modèle de la Mark L. Elle sert dans la bataille finale contre Thanos et son armée.",
+ 'War Machine': "Armure de James Rhodes, à l'origine la Mark II reprise et lourdement armée (Iron Man 2). Mitrailleuse à l'épaule, missiles et armes aux avant-bras. Plus blindée et moins agile que les armures de Tony.",
+ 'Iron Patriot': "La War Machine repeinte aux couleurs du drapeau américain par le gouvernement (Iron Man 3, 2013). Mêmes systèmes, avec une image plus officielle.",
+ 'Rescue': "Armure de Pepper Potts (Endgame, 2019), de type nanotechnologique. Plus fine qu'une armure de combat, avec répulseurs et capacité de vol. Elle rejoint la bataille finale.",
+ 'Iron Spider (assistance Stark)': "Armure de Peter Parker offerte par Tony Stark (Infinity War, 2018). Combinaison nanotechnologique dotée de quatre bras mécaniques en forme de pattes d'araignée, qui servent à l'escalade et à la défense. Elle prolonge les capacités de Spider-Man."
+};
+
+// ---------- Cerveau hors ligne du téléphone (WebLLM) ----------
+let webEngine = null, webLoading = null;
+function webReady(){ try{ return localStorage.getItem('jv_web') === '1' && !!navigator.gpu; }catch(e){ return false; } }
+async function loadWeb(){
+  if(webEngine) return webEngine;
+  if(!navigator.gpu || !(await navigator.gpu.requestAdapter())) throw new Error("Ce navigateur n'a pas de GPU compatible (WebGPU). Ouvrez Jarvis dans Chrome à jour.");
+  if(!webLoading) webLoading = (async()=>{
+    const webllm = await import('https://esm.run/@mlc-ai/web-llm');
+    webEngine = await webllm.CreateMLCEngine('Qwen2.5-1.5B-Instruct-q4f16_1-MLC', {initProgressCallback: r=>{
+      linkStatus.style.color = 'var(--cyan)';
+      linkStatus.textContent = 'CERVEAU HORS LIGNE : ' + Math.round((r.progress||0)*100) + ' % — ' + (r.text||'').slice(0,60);
+    }});
+    try{ localStorage.setItem('jv_web','1'); }catch(e){}
+    linkStatus.textContent = 'CERVEAU HORS LIGNE PRÊT (stocké sur ce téléphone).'; updateBrainTag();
+    return webEngine;
+  })().catch(e=>{ webLoading = null; throw e; });
+  return webLoading;
+}
+async function webBrain(text){
+  const eng = await loadWeb();
+  const msgs = [...hist, {role:'user', content:text}];
+  const r = await eng.chat.completions.create({messages:[{role:'system', content:SYSTEM_PROMPT}, ...msgs], max_tokens:300, temperature:0.7});
+  const out = (r.choices[0].message.content || '').trim();
+  hist = [...msgs, {role:'assistant', content:out}].slice(-12);
+  return out;
+}
+document.getElementById('webBtn').addEventListener('click', async()=>{
+  if(!navigator.gpu){ linkStatus.style.color = 'var(--amber)'; linkStatus.textContent = 'WEBGPU INDISPONIBLE ici : utilisez Chrome récent sur Android.'; return; }
+  linkStatus.style.color = 'var(--cyan)'; linkStatus.textContent = 'TÉLÉCHARGEMENT… (1 à 2 Go, en Wi-Fi de préférence)';
+  try{ await loadWeb(); }catch(e){ linkStatus.style.color = 'var(--amber)'; linkStatus.textContent = 'ÉCHEC : ' + (e.message || e); }
+});
+
+// ---------- Installation (PWA) ----------
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+</script>
+</body>
+</html>
