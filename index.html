@@ -698,8 +698,8 @@ let voicesLoaded = false;
 const voiceSelect = document.getElementById('voiceSelect');
 
 // Noms de voix masculines connues, toutes plateformes/langues confondues
-const MALE_NAMES = /(paul|thomas|daniel|nicolas|guillaume|henri|yannick|antoine|michel|pierre|mathieu|xavier|remi|rémi|jean|luc|marc|david|alex(?!a)|fred|arnaud|male|homme|man\b|-b-|-d-)/i;
-const FEMALE_NAMES = /(julie|amelie|amélie|audrey|celine|céline|chantal|marie|claire|virginie|charlotte|aurelie|aurélie|female|femme|woman|-a-|-c-)/i;
+const MALE_NAMES = /(paul|thomas|daniel|nicolas|guillaume|henri|yannick|antoine|michel|pierre|mathieu|xavier|remi|rémi|jean|luc|marc|david|alex(?!a)|fred|arnaud|male|homme|man\b|-b-|-d-|x-fr[bd]\b)/i;
+const FEMALE_NAMES = /(julie|amelie|amélie|audrey|celine|céline|chantal|marie|claire|virginie|charlotte|aurelie|aurélie|female|femme|woman|-a-|-c-|x-fr[ac]\b|x-vlf)/i;
 
 function isLikelyMale(v){
   const n = v.name.toLowerCase();
@@ -708,7 +708,8 @@ function isLikelyMale(v){
   return null; // genre inconnu
 }
 
-function scoreVoice(v){
+function scoreVoice(v){ return _baseScore(v) - (/(natural|neural|enhanced|premium|wavenet)/i.test(v.name) ? 0.5 : 0); }
+function _baseScore(v){
   const male = isLikelyMale(v);
   const isFr = /fr/i.test(v.lang);
   if(isFr && male === true) return 0;      // français + masculin confirmé
@@ -735,7 +736,8 @@ function populateVoices(){
   });
 
   // Choisit la meilleure voix masculine dispo ; à défaut, la première voix française.
-  selectedVoice = sorted.find(v=>isLikelyMale(v)===true) || sorted[0] || null;
+  let _sv = null; try{ _sv = localStorage.getItem('jv_voice'); }catch(e){}
+  selectedVoice = sorted.find(v=>v.name === _sv) || sorted.find(v=>isLikelyMale(v)===true && /fr/i.test(v.lang)) || sorted.find(v=>isLikelyMale(v)===true) || sorted[0] || null;
   if(selectedVoice) voiceSelect.value = selectedVoice.name;
 
   const genderStatus = document.getElementById('genderStatus');
@@ -754,6 +756,8 @@ function populateVoices(){
 voiceSelect.addEventListener('change', ()=>{
   const voices = speechSynthesis.getVoices();
   selectedVoice = voices.find(v=>v.name === voiceSelect.value) || selectedVoice;
+  try{ localStorage.setItem('jv_voice', voiceSelect.value); }catch(e){}
+  speak("À votre service, Monsieur.");
   const genderStatus = document.getElementById('genderStatus');
   if(genderStatus && selectedVoice){
     const male = isLikelyMale(selectedVoice);
@@ -798,14 +802,19 @@ function speak(text){
   if(!('speechSynthesis' in window)) return;
   if(!document.getElementById('ttsToggle').checked) return;
   speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  if(selectedVoice) u.voice = selectedVoice;
-  u.lang = 'fr-FR';
-  u.rate = 1.0; u.pitch = 0.75;
-  u.onstart = ()=> setState('speaking');
-  u.onend = ()=> setState('idle');
-  u.onerror = ()=> setState('idle');
-  speechSynthesis.speak(u);
+  const clean = String(text).replace(/[*_#`>~]/g,'').replace(/\s+/g,' ').trim();
+  if(!clean) return;
+  const parts = clean.split(/(?<=[.!?…:;])\s+/).filter(Boolean);
+  parts.forEach((p,i)=>{
+    const u = new SpeechSynthesisUtterance(p);
+    if(selectedVoice) u.voice = selectedVoice;
+    u.lang = (selectedVoice && selectedVoice.lang) || 'fr-FR';
+    u.rate = 0.96; u.pitch = 0.9;
+    if(i === 0) u.onstart = ()=> setState('speaking');
+    if(i === parts.length-1) u.onend = ()=> setState('idle');
+    u.onerror = ()=> setState('idle');
+    speechSynthesis.speak(u);
+  });
 }
 
 document.getElementById('testVoiceBtn').addEventListener('click', ()=>{
@@ -1089,20 +1098,34 @@ const ARMOR_DB = {
  'Iron Spider (assistance Stark)': "Armure de Peter Parker offerte par Tony Stark (Infinity War, 2018). Combinaison nanotechnologique dotée de quatre bras mécaniques en forme de pattes d'araignée, qui servent à l'escalade et à la défense. Elle prolonge les capacités de Spider-Man."
 };
 
-// ---------- Cerveau hors ligne du téléphone (WebLLM) ----------
-let webEngine = null, webLoading = null;
-function webReady(){ try{ return localStorage.getItem('jv_web') === '1' && !!navigator.gpu; }catch(e){ return false; } }
+// ---------- Cerveau hors ligne du téléphone (GPU via WebLLM, sinon processeur via transformers.js) ----------
+let webEngine = null, webKind = '', webLoading = null;
+function webReady(){ try{ return localStorage.getItem('jv_web') === '1'; }catch(e){ return false; } }
+const _st = (t, warn)=>{ linkStatus.style.color = warn ? 'var(--amber)' : 'var(--cyan)'; linkStatus.textContent = t; };
 async function loadWeb(){
   if(webEngine) return webEngine;
-  if(!navigator.gpu || !(await navigator.gpu.requestAdapter())) throw new Error("Ce navigateur n'a pas de GPU compatible (WebGPU). Ouvrez Jarvis dans Chrome à jour.");
   if(!webLoading) webLoading = (async()=>{
-    const webllm = await import('https://esm.run/@mlc-ai/web-llm');
-    webEngine = await webllm.CreateMLCEngine('Qwen2.5-1.5B-Instruct-q4f16_1-MLC', {initProgressCallback: r=>{
-      linkStatus.style.color = 'var(--cyan)';
-      linkStatus.textContent = 'CERVEAU HORS LIGNE : ' + Math.round((r.progress||0)*100) + ' % — ' + (r.text||'').slice(0,60);
-    }});
+    try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
+    let gpu = false;
+    try{ gpu = !!navigator.gpu && !!(await navigator.gpu.requestAdapter()); }catch(e){}
+    let errGpu = '';
+    if(gpu){
+      try{
+        const webllm = await import('https://esm.run/@mlc-ai/web-llm');
+        webEngine = await webllm.CreateMLCEngine('Qwen2.5-1.5B-Instruct-q4f16_1-MLC', {initProgressCallback: r=>_st('CERVEAU (GPU) : ' + Math.round((r.progress||0)*100) + ' %')});
+        webKind = 'gpu';
+      }catch(e){ errGpu = String(e.message || e); console.warn('WebLLM', e); webEngine = null; }
+    }
+    if(!webEngine){
+      _st('Pas de GPU utilisable : mode processeur (plus lent). Téléchargement…');
+      try{
+        const tf = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3');
+        webEngine = await tf.pipeline('text-generation', 'onnx-community/Qwen2.5-0.5B-Instruct', {dtype:'q4', device:'wasm', progress_callback: p=>{ if(p.status === 'progress') _st('CERVEAU (PROCESSEUR) : ' + Math.round(p.progress||0) + ' % — ' + (p.file||'')); }});
+        webKind = 'wasm';
+      }catch(e){ throw new Error((errGpu ? 'GPU : ' + errGpu + ' | ' : '') + 'Processeur : ' + String(e.message || e)); }
+    }
     try{ localStorage.setItem('jv_web','1'); }catch(e){}
-    linkStatus.textContent = 'CERVEAU HORS LIGNE PRÊT (stocké sur ce téléphone).'; updateBrainTag();
+    _st('CERVEAU HORS LIGNE PRÊT (' + (webKind === 'gpu' ? 'GPU' : 'processeur') + ', stocké sur ce téléphone).'); updateBrainTag();
     return webEngine;
   })().catch(e=>{ webLoading = null; throw e; });
   return webLoading;
@@ -1110,15 +1133,16 @@ async function loadWeb(){
 async function webBrain(text){
   const eng = await loadWeb();
   const msgs = [...hist, {role:'user', content:text}];
-  const r = await eng.chat.completions.create({messages:[{role:'system', content:SYSTEM_PROMPT}, ...msgs], max_tokens:300, temperature:0.7});
-  const out = (r.choices[0].message.content || '').trim();
+  const sys = [{role:'system', content:SYSTEM_PROMPT}, ...msgs];
+  let out;
+  if(webKind === 'gpu'){ const r = await eng.chat.completions.create({messages:sys, max_tokens:300, temperature:0.7}); out = (r.choices[0].message.content || '').trim(); }
+  else { const r = await eng(sys, {max_new_tokens:200, do_sample:true, temperature:0.7}); out = (r[0].generated_text.at(-1).content || '').trim(); }
   hist = [...msgs, {role:'assistant', content:out}].slice(-12);
   return out;
 }
 document.getElementById('webBtn').addEventListener('click', async()=>{
-  if(!navigator.gpu){ linkStatus.style.color = 'var(--amber)'; linkStatus.textContent = 'WEBGPU INDISPONIBLE ici : utilisez Chrome récent sur Android.'; return; }
-  linkStatus.style.color = 'var(--cyan)'; linkStatus.textContent = 'TÉLÉCHARGEMENT… (1 à 2 Go, en Wi-Fi de préférence)';
-  try{ await loadWeb(); }catch(e){ linkStatus.style.color = 'var(--amber)'; linkStatus.textContent = 'ÉCHEC : ' + (e.message || e); }
+  _st('Démarrage… (plusieurs centaines de Mo, en Wi-Fi de préférence)');
+  try{ await loadWeb(); }catch(e){ _st('ÉCHEC — ' + (e.message || e), true); }
 });
 
 // ---------- Installation (PWA) ----------
