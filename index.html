@@ -479,7 +479,7 @@ body.film{--bg:#02070b; --cyan:#37e0ff; --cyan-dim:#0e4a5c; --cyan-glow:rgba(55,
         <input id="modelInput" placeholder="modèle, ex : llama3.1" autocomplete="off" style="width:100%; margin-top:6px; background:rgba(143,184,255,0.06); border:1px solid var(--line); color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:6px 10px; border-radius:999px; outline:none;">
         <button class="btn" id="linkTestBtn" style="width:100%; margin-top:6px; padding:6px;">TESTER LA LIAISON</button>
         <select id="webModel" style="width:100%; margin-top:6px; background:rgba(143,184,255,0.06); border:1px solid var(--line); color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:6px; border-radius:999px;">
-          <option value="onnx-community/SmolLM2-360M-Instruct">Léger (360M) — évite les plantages, surtout en anglais</option>
+          <option value="HuggingFaceTB/SmolLM2-360M-Instruct">Léger (360M) — évite les plantages, surtout en anglais</option>
           <option value="onnx-community/Qwen2.5-0.5B-Instruct">Standard (0,5 Md) — meilleur français, plus lourd</option>
         </select>
         <button class="btn" id="webBtn" style="width:100%; margin-top:6px; padding:6px;">CERVEAU HORS LIGNE (TÉLÉPHONE)</button>
@@ -1106,7 +1106,7 @@ const ARMOR_DB = {
 // ---------- Cerveau hors ligne du téléphone (GPU via WebLLM, sinon processeur via transformers.js) ----------
 let webEngine = null, webKind = '', webLoading = null;
 function webReady(){ try{ return localStorage.getItem('jv_web') === '1'; }catch(e){ return false; } }
-const getWM = ()=>{ try{ return localStorage.getItem('jv_wmodel') || 'onnx-community/SmolLM2-360M-Instruct'; }catch(e){ return 'onnx-community/SmolLM2-360M-Instruct'; } };
+const getWM = ()=>{ try{ return (localStorage.getItem('jv_wmodel') || 'HuggingFaceTB/SmolLM2-360M-Instruct').replace('onnx-community/SmolLM2','HuggingFaceTB/SmolLM2'); }catch(e){ return 'HuggingFaceTB/SmolLM2-360M-Instruct'; } };
 const _guard = on=>{ try{ on ? localStorage.setItem('jv_loading','1') : localStorage.removeItem('jv_loading'); }catch(e){} };
 const _st = (t, warn)=>{ linkStatus.style.color = warn ? 'var(--amber)' : 'var(--cyan)'; linkStatus.textContent = t; };
 async function loadWeb(){
