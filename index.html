@@ -478,7 +478,12 @@ body.film{--bg:#02070b; --cyan:#37e0ff; --cyan-dim:#0e4a5c; --cyan-glow:rgba(55,
         <div class="stat-label">CERVEAU LOCAL (OLLAMA)</div>
         <input id="modelInput" placeholder="modèle, ex : llama3.1" autocomplete="off" style="width:100%; margin-top:6px; background:rgba(143,184,255,0.06); border:1px solid var(--line); color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:6px 10px; border-radius:999px; outline:none;">
         <button class="btn" id="linkTestBtn" style="width:100%; margin-top:6px; padding:6px;">TESTER LA LIAISON</button>
+        <select id="webModel" style="width:100%; margin-top:6px; background:rgba(143,184,255,0.06); border:1px solid var(--line); color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:6px; border-radius:999px;">
+          <option value="onnx-community/SmolLM2-360M-Instruct">Léger (360M) — évite les plantages, surtout en anglais</option>
+          <option value="onnx-community/Qwen2.5-0.5B-Instruct">Standard (0,5 Md) — meilleur français, plus lourd</option>
+        </select>
         <button class="btn" id="webBtn" style="width:100%; margin-top:6px; padding:6px;">CERVEAU HORS LIGNE (TÉLÉPHONE)</button>
+        <button class="btn" id="webReset" style="width:100%; margin-top:6px; padding:5px; font-size:10px;">RÉINITIALISER LE CERVEAU HORS LIGNE</button>
         <div id="linkStatus" style="font-size:9px; letter-spacing:.5px; margin-top:5px; color:var(--text-dim); line-height:1.5;"></div>
       </div>
       <div class="stat-row" style="border-bottom:none;">
@@ -1101,10 +1106,13 @@ const ARMOR_DB = {
 // ---------- Cerveau hors ligne du téléphone (GPU via WebLLM, sinon processeur via transformers.js) ----------
 let webEngine = null, webKind = '', webLoading = null;
 function webReady(){ try{ return localStorage.getItem('jv_web') === '1'; }catch(e){ return false; } }
+const getWM = ()=>{ try{ return localStorage.getItem('jv_wmodel') || 'onnx-community/SmolLM2-360M-Instruct'; }catch(e){ return 'onnx-community/SmolLM2-360M-Instruct'; } };
+const _guard = on=>{ try{ on ? localStorage.setItem('jv_loading','1') : localStorage.removeItem('jv_loading'); }catch(e){} };
 const _st = (t, warn)=>{ linkStatus.style.color = warn ? 'var(--amber)' : 'var(--cyan)'; linkStatus.textContent = t; };
 async function loadWeb(){
   if(webEngine) return webEngine;
   if(!webLoading) webLoading = (async()=>{
+    _guard(true);
     try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
     let gpu = false;
     try{ gpu = !!navigator.gpu && !!(await navigator.gpu.requestAdapter()); }catch(e){}
@@ -1120,23 +1128,27 @@ async function loadWeb(){
       _st('Pas de GPU utilisable : mode processeur (plus lent). Téléchargement…');
       try{
         const tf = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3');
-        webEngine = await tf.pipeline('text-generation', 'onnx-community/Qwen2.5-0.5B-Instruct', {dtype:'q4', device:'wasm', progress_callback: p=>{ if(p.status === 'progress') _st('CERVEAU (PROCESSEUR) : ' + Math.round(p.progress||0) + ' % — ' + (p.file||'')); }});
+        try{ tf.env.backends.onnx.wasm.numThreads = 1; }catch(e){}
+        webEngine = await tf.pipeline('text-generation', getWM(), {dtype:'q4', device:'wasm', progress_callback: p=>{ if(p.status === 'progress') _st('CERVEAU (PROCESSEUR) : ' + Math.round(p.progress||0) + ' % — ' + (p.file||'')); }});
         webKind = 'wasm';
       }catch(e){ throw new Error((errGpu ? 'GPU : ' + errGpu + ' | ' : '') + 'Processeur : ' + String(e.message || e)); }
     }
     try{ localStorage.setItem('jv_web','1'); }catch(e){}
+    _guard(false);
     _st('CERVEAU HORS LIGNE PRÊT (' + (webKind === 'gpu' ? 'GPU' : 'processeur') + ', stocké sur ce téléphone).'); updateBrainTag();
     return webEngine;
-  })().catch(e=>{ webLoading = null; throw e; });
+  })().catch(e=>{ webLoading = null; _guard(false); throw e; });
   return webLoading;
 }
 async function webBrain(text){
   const eng = await loadWeb();
+  _guard(true);
   const msgs = [...hist, {role:'user', content:text}];
   const sys = [{role:'system', content:SYSTEM_PROMPT}, ...msgs];
   let out;
   if(webKind === 'gpu'){ const r = await eng.chat.completions.create({messages:sys, max_tokens:300, temperature:0.7}); out = (r.choices[0].message.content || '').trim(); }
   else { const r = await eng(sys, {max_new_tokens:200, do_sample:true, temperature:0.7}); out = (r[0].generated_text.at(-1).content || '').trim(); }
+  _guard(false);
   hist = [...msgs, {role:'assistant', content:out}].slice(-12);
   return out;
 }
@@ -1144,6 +1156,24 @@ document.getElementById('webBtn').addEventListener('click', async()=>{
   _st('Démarrage… (plusieurs centaines de Mo, en Wi-Fi de préférence)');
   try{ await loadWeb(); }catch(e){ _st('ÉCHEC — ' + (e.message || e), true); }
 });
+
+// Détection d'un plantage précédent + choix du modèle + réinitialisation
+(function(){
+  const sel = document.getElementById('webModel'); sel.value = getWM();
+  sel.addEventListener('change', ()=>{ try{ localStorage.setItem('jv_wmodel', sel.value); localStorage.removeItem('jv_web'); }catch(e){} webEngine = null; webLoading = null; updateBrainTag(); _st('Modèle changé. Appuyez sur « CERVEAU HORS LIGNE » pour le télécharger.'); });
+  try{
+    if(localStorage.getItem('jv_loading') === '1'){
+      localStorage.removeItem('jv_loading'); localStorage.removeItem('jv_web'); updateBrainTag();
+      _st("La dernière tentative a fait planter la page (mémoire insuffisante). Choisissez le modèle « Léger » puis réessayez.", true);
+    }
+  }catch(e){}
+  document.getElementById('webReset').addEventListener('click', async()=>{
+    try{ localStorage.removeItem('jv_web'); localStorage.removeItem('jv_loading'); }catch(e){}
+    webEngine = null; webLoading = null;
+    try{ for(const k of await caches.keys()){ if(/transformers|webllm/i.test(k)) await caches.delete(k); } }catch(e){}
+    updateBrainTag(); _st('Cerveau hors ligne réinitialisé (cache vidé).');
+  });
+})();
 
 // ---------- Installation (PWA) ----------
 if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
